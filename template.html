@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Sheet Maker — REVA University</title>
+  <meta name="description" content="Generate per-group attendance xlsx files for REVA University extracurricular badging events.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Design tokens ──────────────────────────────────────────────────────── */
+    :root {
+      --bg:        #f3f5fb;
+      --surface:   #ffffff;
+      --surface2:  #f0f2f8;
+      --border:    #dde1ee;
+      --text:      #1a1c2b;
+      --muted:     #60637a;
+      --g1:        #4f46e5; --g1l: #ede9fe; --g1d: #3730a3;
+      --g2:        #0891b2; --g2l: #e0f2fe; --g2d: #0e7490;
+      --g3:        #059669; --g3l: #d1fae5; --g3d: #047857;
+      --warn:      #f59e0b; --warnl: #fef3c7;
+      --err:       #ef4444; --errl: #fee2e2;
+      --ok:        #22c55e;
+      --radius:    10px;
+      --shadow:    0 1px 4px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.04);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg:       #0d1117;
+        --surface:  #161b22;
+        --surface2: #1c2130;
+        --border:   #272d3e;
+        --text:     #e2e6f3;
+        --muted:    #8890aa;
+        --g1:  #6366f1; --g1l: #1e1b4b; --g1d: #818cf8;
+        --g2:  #22d3ee; --g2l: #0c2535; --g2d: #67e8f9;
+        --g3:  #34d399; --g3l: #022c22; --g3d: #6ee7b7;
+        --warn:  #fbbf24; --warnl: #2d200a;
+        --err:   #f87171; --errl:  #2d0e0e;
+        --ok:    #4ade80;
+        --shadow:    0 1px 4px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.2);
+        --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+      }
+    }
+    [data-theme="dark"] {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #1c2130;
+      --border:   #272d3e;
+      --text:     #e2e6f3;
+      --muted:    #8890aa;
+      --g1:  #6366f1; --g1l: #1e1b4b; --g1d: #818cf8;
+      --g2:  #22d3ee; --g2l: #0c2535; --g2d: #67e8f9;
+      --g3:  #34d399; --g3l: #022c22; --g3d: #6ee7b7;
+      --warn:  #fbbf24; --warnl: #2d200a;
+      --err:   #f87171; --errl:  #2d0e0e;
+      --ok:    #4ade80;
+      --shadow:    0 1px 4px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.2);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+    }
+
+    /* ── Reset & base ────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.55; }
+
+    /* ── Layout ─────────────────────────────────────────────────────────────── */
+    .app-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .app-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 1.25rem; height: 52px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .app-header h1 { font-size: 1rem; font-weight: 700; letter-spacing: -.3px; }
+    .app-header .subtitle { font-size: .75rem; color: var(--muted); margin-left: .4rem; }
+    .header-right { display: flex; align-items: center; gap: .5rem; }
+
+    .app-body {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: 1fr;
+      gap: 0;
+      flex: 1;
+      overflow: hidden;
+    }
+    @media (max-width: 768px) {
+      .app-body { grid-template-columns: 1fr; overflow-y: auto; }
+      .app-shell { height: auto; overflow: visible; }
+    }
+
+    .form-panel {
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex; flex-direction: column; gap: .75rem;
+    }
+    .results-panel { overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .875rem; }
+
+    /* ── Card ────────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: .8rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-bottom: .75rem;
+    }
+
+    /* ── Group card accents ──────────────────────────────────────────────────── */
+    .group-card { border-top: 3px solid; }
+    .group-card[data-group="1"] { border-color: var(--g1); }
+    .group-card[data-group="2"] { border-color: var(--g2); }
+    .group-card[data-group="3"] { border-color: var(--g3); }
+    .group-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .75rem; gap: .5rem; flex-wrap: wrap;
+    }
+    .group-badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      font-weight: 700; font-size: .95rem;
+    }
+    .group-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    [data-group="1"] .group-dot { background: var(--g1); }
+    [data-group="2"] .group-dot { background: var(--g2); }
+    [data-group="3"] .group-dot { background: var(--g3); }
+    .group-actions { display: flex; gap: .4rem; }
+
+    .sem-block { margin-bottom: .75rem; }
+    .sem-label {
+      font-size: .72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--muted); margin-bottom: .4rem;
+      padding-bottom: .3rem; border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Form fields ─────────────────────────────────────────────────────────── */
+    .field { display: flex; flex-direction: column; gap: .3rem; }
+    .field label { font-size: .8rem; font-weight: 500; color: var(--muted); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    .field-col { display: flex; flex-direction: column; gap: .5rem; }
+
+    input[type="text"], input[type="date"], input[type="time"],
+    select, textarea {
+      width: 100%; padding: .45rem .65rem;
+      border: 1px solid var(--border); border-radius: 7px;
+      background: var(--surface2); color: var(--text);
+      font-family: inherit; font-size: .85rem;
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--g1); box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+    }
+    input[readonly] { opacity: .7; cursor: default; }
+    textarea { resize: vertical; min-height: 160px; font-family: 'Inter', monospace; font-size: .8rem; line-height: 1.5; }
+
+    select option { background: var(--surface); color: var(--text); }
+
+    /* ── Coordinator display ─────────────────────────────────────────────────── */
+    .coordinators-grid { display: flex; flex-direction: column; gap: .35rem; }
+    .coord-row { display: flex; align-items: center; gap: .5rem; font-size: .82rem; }
+    .coord-badge {
+      font-size: .7rem; font-weight: 700; border-radius: 4px;
+      padding: 2px 6px; color: #fff; flex-shrink: 0;
+    }
+    [data-group="1"] .coord-badge { background: var(--g1); }
+    [data-group="2"] .coord-badge { background: var(--g2); }
+    [data-group="3"] .coord-badge { background: var(--g3); }
+    .coord-input { flex: 1; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────────── */
+    button { cursor: pointer; font-family: inherit; border: none; border-radius: 7px; font-size: .85rem; font-weight: 600; transition: opacity .15s, transform .1s; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--g1); color: #fff; padding: .55rem 1.1rem;
+      width: 100%;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: .88; }
+
+    .btn-sm {
+      padding: .3rem .7rem; font-size: .78rem; font-weight: 600;
+      border-radius: 6px;
+    }
+    .btn-download { background: var(--g1l); color: var(--g1d); }
+    [data-group="2"] .btn-download { background: var(--g2l); color: var(--g2d); }
+    [data-group="3"] .btn-download { background: var(--g3l); color: var(--g3d); }
+    .btn-download:hover:not(:disabled) { opacity: .82; }
+    .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--border); }
+
+    .btn-icon {
+      width: 32px; height: 32px; display: inline-flex; align-items: center;
+      justify-content: center; font-size: 1rem; border-radius: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+    }
+    .btn-icon:hover { background: var(--border); }
+
+    /* ── Student table ───────────────────────────────────────────────────────── */
+    .student-table-wrap { overflow-x: auto; }
+    table.student-table {
+      width: 100%; border-collapse: collapse;
+      font-size: .8rem;
+    }
+    .student-table th {
+      text-align: left; font-size: .72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .04em;
+      color: var(--muted); padding: .35rem .5rem;
+      border-bottom: 2px solid var(--border); white-space: nowrap;
+      background: var(--surface2);
+    }
+    .student-table td { padding: .32rem .5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .student-table tr:last-child td { border-bottom: none; }
+    .student-table tr:hover td { background: var(--surface2); }
+
+    /* Row highlight states */
+    .row-name td { background: rgba(245,158,11,.08) !important; }
+    .row-name:hover td { background: rgba(245,158,11,.14) !important; }
+    .row-sem td { background: rgba(234,179,8,.1) !important; }
+    .row-nosect td { background: rgba(239,68,68,.08) !important; }
+    .row-nosect:hover td { background: rgba(239,68,68,.14) !important; }
+    .row-notfound td { background: rgba(239,68,68,.1) !important; }
+
+    .status-icon { font-size: .85rem; }
+
+    /* Inline editable cells */
+    .edit-input {
+      padding: .2rem .4rem; border: 1px solid var(--border);
+      border-radius: 5px; background: var(--surface);
+      color: var(--text); font-family: inherit; font-size: .8rem;
+      width: 100%; min-width: 50px;
+    }
+    .edit-input:focus { border-color: var(--g1); outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,.15); }
+    select.edit-input { min-width: 65px; }
+
+    /* ── Warnings / info boxes ───────────────────────────────────────────────── */
+    .warn-box, .info-box {
+      border-radius: var(--radius); padding: .75rem 1rem; font-size: .82rem;
+    }
+    .warn-box { background: var(--warnl); border-left: 3px solid var(--warn); }
+    .err-box  { background: var(--errl);  border-left: 3px solid var(--err); }
+    .warn-box ul, .err-box ul { padding-left: 1.2rem; margin-top: .3rem; line-height: 1.7; }
+    .warn-title { font-weight: 700; margin-bottom: .2rem; }
+
+    /* ── Needs-group block ───────────────────────────────────────────────────── */
+    .needs-group-card { border-top: 3px solid var(--warn); }
+    .needs-group-card .card-title { color: var(--warn); }
+
+    /* ── Download row ────────────────────────────────────────────────────────── */
+    .download-all-row {
+      display: flex; justify-content: flex-end; padding: .25rem 0;
+    }
+    .btn-dl-all {
+      background: var(--g1); color: #fff; padding: .55rem 1.5rem;
+      border-radius: 7px; font-size: .85rem; font-weight: 700;
+    }
+    .btn-dl-all:hover { opacity: .88; }
+
+    /* ── Empty state ─────────────────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center; color: var(--muted); padding: 2rem 1rem; font-size: .85rem;
+    }
+    .empty-state .icon { font-size: 2rem; margin-bottom: .4rem; }
+
+    /* ── Candidates list ─────────────────────────────────────────────────────── */
+    .candidate-list { margin-top: .25rem; font-size: .78rem; color: var(--muted); }
+
+    /* ── Count badge ─────────────────────────────────────────────────────────── */
+    .count-badge {
+      display: inline-block; font-size: .7rem; font-weight: 700;
+      border-radius: 20px; padding: 1px 7px;
+      background: var(--surface2); color: var(--muted);
+      margin-left: .4rem;
+    }
+
+    /* ── Hint text ───────────────────────────────────────────────────────────── */
+    .hint { font-size: .75rem; color: var(--muted); margin-bottom: .4rem; }
+
+    /* ── Spinner ─────────────────────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .6s linear infinite; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Scrollbar ───────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <h1>Attendance Sheet Maker</h1>
+      <span class="subtitle">REVA University · Extracurricular</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-icon" id="theme-btn" title="Toggle dark/light mode" aria-label="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <div class="app-body">
+
+    <!-- Left: event form -->
+    <aside class="form-panel" id="form-panel">
+
+      <!-- Event details -->
+      <div class="card">
+        <div class="card-title">Event details</div>
+        <div class="field-col">
+          <div class="field">
+            <label for="event-name">Event name</label>
+            <input type="text" id="event-name" placeholder="e.g. Investitures Ceremony">
+          </div>
+          <div class="field">
+            <label for="event-date">Date</label>
+            <input type="date" id="event-date">
+          </div>
+          <div class="field">
+            <label for="session-preset">Session preset</label>
+            <select id="session-preset">
+              <option value="">— pick a preset —</option>
+              <option value="full-830">Full day, 8:30 AM to 4:30 PM</option>
+              <option value="full-1030">Full day, 10:30 AM to 4:30 PM</option>
+              <option value="psb">Post short break, 10:30 AM to 12:30 PM</option>
+              <option value="pl">Post lunch, 12:30 PM to 4:30 PM</option>
+              <option value="custom">Custom times</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="start-time">Start time</label>
+              <input type="time" id="start-time">
+            </div>
+            <div class="field">
+              <label for="end-time">End time</label>
+              <input type="time" id="end-time">
+            </div>
+          </div>
+          <div class="field">
+            <label for="session-label">Session label (column G)</label>
+            <input type="text" id="session-label" placeholder="e.g. Post Lunch">
+          </div>
+          <div class="field">
+            <label for="duration-text">Duration (column H)</label>
+            <input type="text" id="duration-text" placeholder="12:30 PM to 4:30 PM">
+          </div>
+        </div>
+      </div>
+
+      <!-- Coordinators -->
+      <div class="card">
+        <div class="card-title">Coordinators</div>
+        <div class="coordinators-grid">
+          <div class="coord-row" data-group="1">
+            <span class="coord-badge">G1</span>
+            <input class="coord-input edit-input" type="text" id="coord-1" value="Prof. Mala B M">
+          </div>
+          <div class="coord-row" data-group="2">
+            <span class="coord-badge">G2</span>
+            <input class="coord-input edit-input" type="text" id="coord-2" value="Prof. Ravi B K">
+          </div>
+          <div class="coord-row" data-group="3">
+            <span class="coord-badge">G3</span>
+            <input class="coord-input edit-input" type="text" id="coord-3" value="Prof. Manasa K N">
+          </div>
+        </div>
+      </div>
+
+      <!-- Student paste area -->
+      <div class="card" style="flex:1;display:flex;flex-direction:column;">
+        <div class="card-title">Student list</div>
+        <p class="hint">Paste one student per line — messy formats are fine.</p>
+        <textarea id="student-input" spellcheck="false" placeholder="Samra Syed - R24EH133 - 5th sem&#10;ARJUN R24EA016- 5 TH SEM AI ML A&#10;Gagan"></textarea>
+        <button class="btn-primary" id="parse-btn" style="margin-top:.6rem">Parse students</button>
+      </div>
+
+    </aside>
+
+    <!-- Right: results -->
+    <main class="results-panel" id="results-panel">
+      <div id="warnings-zone"></div>
+      <div id="groups-zone">
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          Paste students and click <strong>Parse students</strong> to get started.
+        </div>
+      </div>
+      <div id="needs-group-zone"></div>
+      <div id="dl-all-zone"></div>
+    </main>
+
+  </div>
+</div>
+
+<!-- JSZip 3.10.1 (pinned) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+  crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<!-- Injected build data -->
+<script>
+const FACE_MEMBERS = {{ face_members_json }};
+const SECTION_FALLBACK = {{ section_fallback_json }};
+const TEMPLATE_B64 = {
+  "1": "{{ b64_group1 }}",
+  "2": "{{ b64_group2 }}",
+  "3": "{{ b64_group3 }}"
+};
+const COORDINATORS_DEFAULT = {{ coordinators_json }};
+</script>
+
+<!-- Application logic -->
+<script>
+{% raw %}
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Each student object:
+// { usn, name, group, semester, section, status, warnings, candidates }
+// status: 'ok' | 'name_match' | 'sem_mismatch' | 'nosect' | 'not_found' | 'no_group'
+let APP_STUDENTS = [];
+let APP_PARSE_ERRORS = []; // lines that failed entirely
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getCoord(g) {
+  return document.getElementById(`coord-${g}`)?.value.trim() || COORDINATORS_DEFAULT[g] || '';
+}
+
+function normName(s) {
+  return s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function nameWords(s) {
+  return normName(s).split(' ').filter(Boolean);
+}
+
+// Does inputName match memberName? (all words of input appear in member)
+function nameMatches(input, member) {
+  const iw = nameWords(input);
+  const mw = nameWords(member);
+  return iw.length > 0 && iw.every(w => mw.includes(w));
+}
+
+function extractUSN(line) {
+  const m = line.match(/R\d{2}E[A-Za-z]\d{3}/i);
+  return m ? m[0].toUpperCase() : null;
+}
+
+function extractSemester(line) {
+  const m = line.match(/\b(\d+)\s*(?:st|nd|rd|th)?\s*(?:th|)?\s*sem(?:ester)?\b/i);
+  return m ? parseInt(m[1]) : null;
+}
+
+// Extract section: last standalone A-F letter after the "sem" keyword
+function extractSectionFromLine(line) {
+  const semM = line.match(/\b\d+\s*(?:st|nd|rd|th)?\s*sem(?:ester)?\b/i);
+  if (!semM) return null;
+  const after = line.slice(semM.index + semM[0].length);
+  // Find all standalone A-F letters (not adjacent to other letters)
+  const re = /(?<![A-Za-z])([A-F])(?![A-Za-z])/gi;
+  let last = null, m;
+  while ((m = re.exec(after)) !== null) last = m[1].toUpperCase();
+  return last;
+}
+
+function resolveSection(usn, fromLine) {
+  if (fromLine) return fromLine.trim().toUpperCase();
+  const fm = FACE_MEMBERS[usn];
+  if (fm && fm.section) return fm.section;
+  if (SECTION_FALLBACK[usn]) return SECTION_FALLBACK[usn].trim().toUpperCase();
+  return '';
+}
+
+// Fuzzy name lookup — returns array of USN strings
+function findByName(rawName, semester) {
+  const candidates = [];
+  for (const [usn, fm] of Object.entries(FACE_MEMBERS)) {
+    if (semester !== null && fm.semester !== semester) continue;
+    if (nameMatches(rawName, fm.name)) candidates.push(usn);
+  }
+  // If narrowed by semester gives nothing, try without
+  if (candidates.length === 0 && semester !== null) {
+    for (const [usn, fm] of Object.entries(FACE_MEMBERS)) {
+      if (nameMatches(rawName, fm.name)) candidates.push(usn);
+    }
+  }
+  return candidates;
+}
+
+// Strip USN, semester, separators to extract the name portion from a line
+function extractNameFromLine(line) {
+  let s = line;
+  s = s.replace(/R\d{2}E[A-Za-z]\d{3}/gi, ' ');
+  s = s.replace(/\b\d+\s*(?:st|nd|rd|th)?\s*(?:th|)?\s*sem(?:ester)?\b[\s\S]*/i, ' ');
+  s = s.replace(/[—\-|\/]/g, ' ');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARSING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function parseLine(line) {
+  const raw = line.trim();
+  if (!raw) return null;
+
+  const usn      = extractUSN(raw);
+  const semLine  = extractSemester(raw);
+  const sectLine = extractSectionFromLine(raw);
+
+  // ── USN path ──────────────────────────────────────────────────────────────
+  if (usn) {
+    const fm = FACE_MEMBERS[usn];
+    if (!fm) {
+      return { usn, name: extractNameFromLine(raw) || usn, group: null, semester: semLine || null,
+               section: sectLine ? sectLine.toUpperCase() : '',
+               status: 'no_group', warnings: [`USN ${usn} not in face-members list. Assign a group manually.`] };
+    }
+
+    const section = resolveSection(usn, sectLine);
+    const warnings = [];
+    let status = 'ok';
+
+    if (!section) { status = 'nosect'; warnings.push('Section missing — row will be blank.'); }
+    if (semLine !== null && semLine !== fm.semester) {
+      if (status === 'ok') status = 'sem_mismatch';
+      warnings.push(`Semester in text (${semLine}) differs from face-members record (${fm.semester}). Using text value.`);
+    }
+
+    return {
+      usn, name: fm.name, group: fm.group,
+      semester: semLine !== null ? semLine : fm.semester,
+      section, status, warnings,
+    };
+  }
+
+  // ── Name path ─────────────────────────────────────────────────────────────
+  const namePart = extractNameFromLine(raw);
+  if (!namePart) {
+    return { error: true, line: raw, reason: 'Could not extract name or USN.' };
+  }
+
+  const candidates = findByName(namePart, semLine);
+
+  if (candidates.length === 0) {
+    return { error: true, line: raw, reason: `"${namePart}" not found in face-members list.` };
+  }
+  if (candidates.length > 1) {
+    return {
+      error: true, line: raw, ambiguous: true,
+      reason: `"${namePart}" is ambiguous. Candidates:`,
+      candidates: candidates.map(u => `${FACE_MEMBERS[u].name} (${u})`),
+    };
+  }
+
+  // Exactly one match
+  const usn2 = candidates[0];
+  const fm = FACE_MEMBERS[usn2];
+  const section = resolveSection(usn2, sectLine);
+  const warnings = [`Matched by name (no USN in input). Verify this is correct.`];
+  let status = 'name_match';
+
+  if (!section) { warnings.push('Section missing.'); }
+  if (semLine !== null && semLine !== fm.semester) {
+    warnings.push(`Semester mismatch: text=${semLine}, record=${fm.semester}. Using text value.`);
+    status = 'name_match';
+  }
+
+  return {
+    usn: usn2, name: fm.name, group: fm.group,
+    semester: semLine !== null ? semLine : fm.semester,
+    section, status, warnings,
+  };
+}
+
+function parseAll(text) {
+  const lines = text.split(/\r?\n/);
+  const students = [];
+  const errors = [];
+  const seenUSNs = new Set();
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const result = parseLine(line);
+    if (!result) continue;
+
+    if (result.error) {
+      errors.push(result);
+      continue;
+    }
+
+    if (result.usn && seenUSNs.has(result.usn)) continue; // dedup
+    if (result.usn) seenUSNs.add(result.usn);
+
+    students.push(result);
+  }
+
+  return { students, errors };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'style') e.style.cssText = v;
+    else e.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (c == null) continue;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  }
+  return e;
+}
+
+function statusIcon(s) {
+  const map = { ok: '✓', name_match: '⚠', sem_mismatch: '⚠', nosect: '🔴', no_group: '❓', not_found: '✗' };
+  return map[s] || '';
+}
+function rowClass(s) {
+  const map = { name_match: 'row-name', sem_mismatch: 'row-sem', nosect: 'row-nosect', no_group: 'row-nosect', not_found: 'row-notfound' };
+  return map[s] || '';
+}
+
+function makeStudentRow(student, idx, showGroupCol) {
+  const tr = document.createElement('tr');
+  if (rowClass(student.status)) tr.classList.add(rowClass(student.status));
+  tr.dataset.idx = idx;
+
+  function td(content) {
+    const t = document.createElement('td');
+    if (typeof content === 'string') t.textContent = content;
+    else t.appendChild(content);
+    return t;
+  }
+
+  // Status icon with tooltip
+  const iconEl = el('span', { class: 'status-icon', title: (student.warnings || []).join('\n') }, statusIcon(student.status));
+  tr.appendChild(td(iconEl));
+  tr.appendChild(td(student.usn || '—'));
+  tr.appendChild(td(student.name || '—'));
+
+  // Editable semester dropdown
+  const semSel = el('select', { class: 'edit-input', 'data-field': 'semester', 'aria-label': 'Semester' },
+    el('option', { value: '3' }, '3'), el('option', { value: '5' }, '5'));
+  semSel.value = String(student.semester || '');
+  semSel.addEventListener('change', e => updateStudent(idx, 'semester', parseInt(e.target.value)));
+  tr.appendChild(td(semSel));
+
+  // Editable section input
+  const sectIn = el('input', { type: 'text', class: 'edit-input', maxlength: '1',
+    'data-field': 'section', 'aria-label': 'Section',
+    style: 'width:52px;text-transform:uppercase;',
+    value: student.section || '', placeholder: '?' });
+  sectIn.addEventListener('change', e => updateStudent(idx, 'section', e.target.value.toUpperCase().slice(0, 1)));
+  tr.appendChild(td(sectIn));
+
+  // Group dropdown (always visible)
+  const grpSel = el('select', { class: 'edit-input', 'data-field': 'group', 'aria-label': 'Group' },
+    el('option', { value: '' }, '—'),
+    el('option', { value: '1' }, 'G1'),
+    el('option', { value: '2' }, 'G2'),
+    el('option', { value: '3' }, 'G3'));
+  grpSel.value = String(student.group || '');
+  grpSel.addEventListener('change', e => updateStudent(idx, 'group', e.target.value ? parseInt(e.target.value) : null));
+  tr.appendChild(td(grpSel));
+
+  return tr;
+}
+
+function makeStudentTable(students, showGroupCol) {
+  if (students.length === 0) return el('p', { class: 'hint', style: 'padding:.5rem 0' }, 'No students.');
+  const thead = el('thead', {},
+    el('tr', {},
+      el('th', {}, ''),
+      el('th', {}, 'USN'),
+      el('th', {}, 'Name'),
+      el('th', {}, 'Semester'),
+      el('th', {}, 'Section'),
+      el('th', {}, 'Group'),
+    )
+  );
+  const tbody = document.createElement('tbody');
+  students.forEach((s, i) => tbody.appendChild(makeStudentRow(s, s._idx, showGroupCol)));
+  const table = el('table', { class: 'student-table' }, thead, tbody);
+  return el('div', { class: 'student-table-wrap' }, table);
+}
+
+function makeGroupCard(groupNum, students) {
+  const sem3 = students.filter(s => s.semester === 3);
+  const sem5 = students.filter(s => s.semester === 5);
+
+  const card = el('div', { class: 'card group-card', 'data-group': String(groupNum) });
+
+  // Card header
+  const dlBtn = el('button', { class: 'btn-sm btn-download', id: `dl-g${groupNum}`, title: `Download Group ${groupNum} xlsx` }, '↓ Download');
+  dlBtn.addEventListener('click', () => downloadGroup(groupNum));
+
+  const header = el('div', { class: 'group-card-header' },
+    el('div', { class: 'group-badge' },
+      el('span', { class: 'group-dot' }),
+      `Group ${groupNum}`,
+      el('span', { class: 'count-badge' }, String(students.length)),
+    ),
+    el('div', { class: 'group-actions' }, dlBtn)
+  );
+  card.appendChild(header);
+
+  // Sem blocks
+  for (const [semLabel, semStudents] of [['5th semester', sem5], ['3rd semester', sem3]]) {
+    const block = el('div', { class: 'sem-block' });
+    block.appendChild(el('div', { class: 'sem-label' }, `${semLabel} (${semStudents.length})`));
+    block.appendChild(makeStudentTable(semStudents));
+    card.appendChild(block);
+  }
+
+  return card;
+}
+
+function renderResults() {
+  const groupsZone = document.getElementById('groups-zone');
+  const needsZone = document.getElementById('needs-group-zone');
+  const dlZone = document.getElementById('dl-all-zone');
+  const warnZone = document.getElementById('warnings-zone');
+
+  // ── Parse errors / warnings ───────────────────────────────────────────────
+  warnZone.innerHTML = '';
+  if (APP_PARSE_ERRORS.length > 0) {
+    const box = el('div', { class: 'card warn-box' });
+    box.appendChild(el('div', { class: 'warn-title' }, `⚠ ${APP_PARSE_ERRORS.length} line(s) skipped`));
+    const ul = el('ul', {});
+    for (const e of APP_PARSE_ERRORS) {
+      const li = el('li', {});
+      li.innerHTML = `<strong>${escHtml(e.line)}</strong> — ${escHtml(e.reason)}`;
+      if (e.candidates && e.candidates.length) {
+        const cl = el('div', { class: 'candidate-list' });
+        cl.textContent = e.candidates.join(', ');
+        li.appendChild(cl);
+      }
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+    warnZone.appendChild(box);
+  }
+
+  // ── Group cards ───────────────────────────────────────────────────────────
+  groupsZone.innerHTML = '';
+  const grouped = APP_STUDENTS.filter(s => s.group);
+  const ungrouped = APP_STUDENTS.filter(s => !s.group);
+
+  if (APP_STUDENTS.length === 0 && APP_PARSE_ERRORS.length === 0) {
+    groupsZone.innerHTML = '<div class="empty-state"><div class="icon">📋</div>Paste students and click <strong>Parse students</strong> to get started.</div>';
+  } else {
+    for (const g of [1, 2, 3]) {
+      const gs = grouped.filter(s => s.group === g);
+      if (gs.length === 0 && ungrouped.length === 0 && APP_PARSE_ERRORS.length === 0) continue;
+      if (gs.length > 0) groupsZone.appendChild(makeGroupCard(g, gs));
+    }
+    if (grouped.length === 0 && APP_PARSE_ERRORS.length > 0) {
+      groupsZone.innerHTML = '<div class="empty-state"><div class="icon">✗</div>No valid students parsed.</div>';
+    } else if (grouped.length === 0) {
+      groupsZone.innerHTML = '<div class="empty-state"><div class="icon">❓</div>All students need a group assigned.</div>';
+    }
+  }
+
+  // ── Needs-group block ─────────────────────────────────────────────────────
+  needsZone.innerHTML = '';
+  if (ungrouped.length > 0) {
+    const card = el('div', { class: 'card needs-group-card' });
+    card.appendChild(el('div', { class: 'card-title' }, `Needs a group (${ungrouped.length})`));
+    card.appendChild(el('p', { class: 'hint' }, 'These students will be excluded from downloads until you assign a group.'));
+    card.appendChild(makeStudentTable(ungrouped, true));
+    needsZone.appendChild(card);
+  }
+
+  // ── Download all ──────────────────────────────────────────────────────────
+  dlZone.innerHTML = '';
+  if (grouped.length > 0) {
+    const btn = el('button', { class: 'btn-dl-all', id: 'dl-all-btn' }, '⬇ Download all');
+    btn.addEventListener('click', downloadAll);
+    dlZone.appendChild(el('div', { class: 'download-all-row' }, btn));
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function updateStudent(idx, field, value) {
+  const s = APP_STUDENTS[idx];
+  if (!s) return;
+  s[field] = value;
+  // Re-check status
+  if (field === 'section') {
+    if (!value && s.status === 'ok') s.status = 'nosect';
+    else if (value && s.status === 'nosect') s.status = 'ok';
+  }
+  renderResults();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT INFO HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getEventInfo() {
+  return {
+    eventName: document.getElementById('event-name').value.trim(),
+    date: document.getElementById('event-date').value,
+    session: document.getElementById('session-label').value.trim(),
+    duration: document.getElementById('duration-text').value.trim(),
+  };
+}
+
+function formatTime12(hhmm) {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// XLSX GENERATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const REL_WORKSHEET = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet';
+const CT_WORKSHEET  = 'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml';
+
+function base64ToUint8Array(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function dateToExcelSerial(dateStr) {
+  // dateStr: "YYYY-MM-DD"
+  // Excel serial: days since Dec 30 1899 (with 1900 leap-year bug built in as offset 25569 from Unix epoch)
+  if (!dateStr) return 0;
+  const d = new Date(dateStr + 'T00:00:00Z');
+  return Math.round(d.getTime() / 86400000 + 25569);
+}
+
+function escXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function ensureOneXmlDecl(xml) {
+  const clean = xml.replace(/<\?xml[^?]*\?>\s*/g, '');
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + clean;
+}
+
+/* ── Parse sheet-name to semester ────────────────────────────────────────── */
+function semFromSheetName(name) {
+  if (/5th/i.test(name)) return 5;
+  if (/3rd/i.test(name)) return 3;
+  return null;
+}
+
+/* ── Parse workbook.xml + rels ───────────────────────────────────────────── */
+function parseSheetMap(wbXml, relsXml) {
+  const sheets = [];
+  for (const m of wbXml.matchAll(/<sheet\b[^>]*>/g)) {
+    const tag = m[0];
+    const name    = (tag.match(/\bname="([^"]*)"/) || [])[1] || '';
+    const sheetId = (tag.match(/\bsheetId="([^"]*)"/) || [])[1] || '';
+    const rid     = (tag.match(/\br:id="([^"]*)"/) || [])[1] || '';
+    sheets.push({ name, sheetId, rid, path: null });
+  }
+
+  const ridToPath = {};
+  for (const m of relsXml.matchAll(/<Relationship\b[^>]*\/>/g)) {
+    const tag = m[0];
+    if (!tag.includes('/worksheet')) continue;
+    const rid    = (tag.match(/\bId="([^"]*)"/) || [])[1] || '';
+    const target = (tag.match(/\bTarget="([^"]*)"/) || [])[1] || '';
+    ridToPath[rid] = target.startsWith('xl/') ? target : 'xl/' + target;
+  }
+
+  for (const s of sheets) s.path = ridToPath[s.rid] || null;
+
+  const semToSheet = {};
+  for (const s of sheets) {
+    if (s.name === 'Link Sheet' || !s.path) continue;
+    const sem = semFromSheetName(s.name);
+    if (sem) semToSheet[sem] = s;
+  }
+
+  return { sheets, semToSheet };
+}
+
+/* ── Extract cell style indices from a row XML string ───────────────────── */
+function extractStyles(rowXml, rowNum) {
+  if (!rowXml || !rowNum) return {};
+  const styles = {};
+  const htM = rowXml.match(/<row[^>]* ht="([^"]+)"/);
+  if (htM) styles._ht = htM[1];
+  for (const col of ['A','B','C','D','E','F','G','H','I','J','K','L']) {
+    const cRe = new RegExp(`<c r="${col}${rowNum}"([^>]*)(?:/>|>)`);
+    const cM = rowXml.match(cRe);
+    if (cM) {
+      const sM = cM[1].match(/\bs="(\d+)"/);
+      styles[col] = sM ? sM[1] : '';
+    }
+  }
+  return styles;
+}
+
+/* ── Build one data row XML string ───────────────────────────────────────── */
+function buildRowXml(rowNum, slNum, student, eventInfo, semNum, groupNum, styles) {
+  const coord = getCoord(groupNum);
+  const ds    = dateToExcelSerial(eventInfo.date);
+
+  function sa(col) { return styles[col] ? ` s="${styles[col]}"` : ''; }
+  function num(col, v) { return `<c r="${col}${rowNum}"${sa(col)}><v>${v}</v></c>`; }
+  function str(col, v) { return `<c r="${col}${rowNum}"${sa(col)} t="inlineStr"><is><t xml:space="preserve">${escXml(v)}</t></is></c>`; }
+  function emp(col)    { return `<c r="${col}${rowNum}"${sa(col)}/>`; }
+
+  const htAttr = styles._ht ? ` ht="${styles._ht}" customHeight="1"` : '';
+  return (
+    `<row r="${rowNum}"${htAttr}>` +
+    num('A', slNum) +
+    str('B', student.usn || '') +
+    str('C', 'School Of CSE') +
+    num('D', semNum) +
+    str('E', (student.section || '').trim()) +
+    num('F', ds) +
+    str('G', eventInfo.session || '') +
+    str('H', eventInfo.duration || '') +
+    str('I', eventInfo.eventName || '') +
+    str('J', coord) +
+    emp('K') +
+    emp('L') +
+    `</row>`
+  );
+}
+
+/* ── Edit one sheet XML ─────────────────────────────────────────────────── */
+function editSheetXml(xmlStr, students, semNum, eventInfo, groupNum) {
+  // Find sheetData
+  const sdS = xmlStr.indexOf('<sheetData>');
+  const sdE = xmlStr.indexOf('</sheetData>');
+  if (sdS === -1 || sdE === -1) return xmlStr;
+
+  const before = xmlStr.slice(0, sdS);
+  const after  = xmlStr.slice(sdE + '</sheetData>'.length);
+  const content = xmlStr.slice(sdS + '<sheetData>'.length, sdE);
+
+  // Extract all rows
+  const rows = {};
+  for (const m of content.matchAll(/<row\b[^>]*r="(\d+)"[^>]*>[\s\S]*?<\/row>/g)) {
+    rows[parseInt(m[1])] = m[0];
+  }
+
+  // Find footer row from merge cell pattern A<N>:D<N> (same row number both sides)
+  const fmM = xmlStr.match(/<mergeCell ref="A(\d+):D\1"/);
+  const footerNum = fmM ? parseInt(fmM[1]) : null;
+  const footerXml = footerNum ? rows[footerNum] : null;
+
+  // Prefer rows with actual cell content for style extraction
+  const allDataNums = Object.keys(rows).map(Number).filter(n => n >= 3 && n !== footerNum).sort((a,b) => a-b);
+  const contentNums = allDataNums.filter(n => /<v>|<is>/.test(rows[n]));
+  const dataNums = contentNums.length >= 2 ? contentNums : allDataNums;
+  const styles0 = extractStyles(rows[dataNums[0]], dataNums[0]);
+  const styles1Extracted = extractStyles(rows[dataNums[1]], dataNums[1]);
+  const styles1 = Object.keys(styles1Extracted).length > 1 ? styles1Extracted : styles0;
+  // Fill any missing cols in styles1 from styles0
+  for (const k of Object.keys(styles0)) { if (!styles1[k]) styles1[k] = styles0[k]; }
+
+  // Build new rows
+  // 4 blank rows of spacing before the signature footer
+  const GAP = 4;
+  const newFooterNum = 3 + students.length + GAP;
+  const newDataRows = students.map((s, i) =>
+    buildRowXml(i + 3, i + 1, s, eventInfo, semNum, groupNum, i % 2 === 0 ? styles0 : styles1)
+  );
+
+  // Update footer row numbers
+  let newFooterStr = '';
+  if (footerXml && footerNum) {
+    newFooterStr = footerXml
+      // Update r= attribute on <row> — handle any attribute order
+      .replace(new RegExp(`(\\br)="${footerNum}"`, 'g'), `$1="${newFooterNum}"`)
+      // Update r= on <c> cells — only A-L columns
+      .replace(new RegExp(`(<c r="[A-L])${footerNum}"`, 'g'), `$1${newFooterNum}"`);
+  }
+
+  // Reconstruct sheetData
+  const parts = [rows[1] || '', rows[2] || '', ...newDataRows, newFooterStr].filter(Boolean);
+  let xml = before + '<sheetData>' + parts.join('') + '</sheetData>' + after;
+
+  // Update dimension
+  xml = xml.replace(/(<dimension ref=")[^"]*(")/,
+    `$1A1:L${newFooterNum}$2`);
+
+  // Update footer merge cell (A<old>:D<old> → A<new>:D<new>)
+  xml = xml.replace(/<mergeCell ref="A\d+:D\d+"\/>/,
+    `<mergeCell ref="A${newFooterNum}:D${newFooterNum}"/>`);
+
+  return xml;
+}
+
+/* ── Build a workbook zip blob for one group ─────────────────────────────── */
+async function buildWorkbook(groupNum, eventInfo) {
+  const allGroupStudents = APP_STUDENTS.filter(s => s.group === groupNum);
+  if (allGroupStudents.length === 0 && groupNum !== 1 && groupNum !== 2 && groupNum !== 3) return null;
+
+  const bytes = base64ToUint8Array(TEMPLATE_B64[String(groupNum)]);
+  const zip   = await JSZip.loadAsync(bytes);
+
+  let wbXml   = await zip.file('xl/workbook.xml').async('string');
+  let relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  let ctXml   = await zip.file('[Content_Types].xml').async('string');
+
+  const { sheets, semToSheet } = parseSheetMap(wbXml, relsXml);
+
+  // ── Group 3: rename misnamed sheets ──
+  if (groupNum === 3) {
+    wbXml = wbXml
+      .replace(/name="Group 1 -5th Sem"/g, 'name="Group 3 - 5th Sem"')
+      .replace(/name="Group 1 -3rd Sem"/g, 'name="Group 3 - 3rd Sem"');
+  }
+
+  // Find max existing sheetN number and rId
+  let maxSheetN = 0;
+  zip.forEach(p => { const m = p.match(/worksheets\/sheet(\d+)\.xml$/); if (m) maxSheetN = Math.max(maxSheetN, +m[1]); });
+  let maxRid = 0;
+  for (const m of relsXml.matchAll(/\bId="rId(\d+)"/g)) maxRid = Math.max(maxRid, +m[1]);
+  let maxSheetId = Math.max(0, ...sheets.map(s => parseInt(s.sheetId) || 0));
+
+  // ── Process each semester ──────────────────────────────────────────────────
+  for (const semNum of [3, 5]) {
+    const semStudents = allGroupStudents.filter(s => s.semester === semNum);
+    let sheetEntry = semToSheet[semNum];
+
+    if (!sheetEntry) {
+      if (semStudents.length === 0) continue; // no students, no sheet needed
+
+      // Clone an existing data sheet
+      const srcSheet = sheets.find(s => s.name !== 'Link Sheet' && s.path);
+      if (!srcSheet) continue;
+
+      maxSheetN++; maxRid++; maxSheetId++;
+      const newPath     = `xl/worksheets/sheet${maxSheetN}.xml`;
+      const newRid      = `rId${maxRid}`;
+      const newSheetId  = String(maxSheetId);
+      const newName     = `Group ${groupNum} - ${semNum === 3 ? '3rd' : '5th'} Sem`;
+
+      // Clone raw XML
+      const srcXml = await zip.file(srcSheet.path).async('string');
+      zip.file(newPath, srcXml); // placeholder; will be overwritten below
+
+      // Register in workbook.xml (before Link Sheet)
+      wbXml = wbXml.replace(
+        /(<sheet[^>]*name="Link Sheet"[^>]*\/>)/,
+        `<sheet state="visible" name="${newName}" sheetId="${newSheetId}" r:id="${newRid}"/>$1`
+      );
+
+      // Register in rels
+      relsXml = relsXml.replace('</Relationships>',
+        `<Relationship Id="${newRid}" Type="${REL_WORKSHEET}" Target="worksheets/sheet${maxSheetN}.xml"/></Relationships>`);
+
+      // Register in Content_Types
+      ctXml = ctXml.replace('</Types>',
+        `<Override ContentType="${CT_WORKSHEET}" PartName="/xl/worksheets/sheet${maxSheetN}.xml"/></Types>`);
+
+      sheetEntry = { path: newPath };
+    }
+
+    // Edit the sheet
+    let sheetXml = await zip.file(sheetEntry.path).async('string');
+    sheetXml = editSheetXml(sheetXml, semStudents, semNum, eventInfo, groupNum);
+    zip.file(sheetEntry.path, ensureOneXmlDecl(sheetXml));
+  }
+
+  // Save updated manifest files
+  zip.file('xl/workbook.xml', ensureOneXmlDecl(wbXml));
+  zip.file('xl/_rels/workbook.xml.rels', ensureOneXmlDecl(relsXml));
+  zip.file('[Content_Types].xml', ensureOneXmlDecl(ctXml));
+
+  return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+}
+
+function buildFilename(groupNum, eventInfo) {
+  const d = eventInfo.date || '';
+  let dStr = 'event';
+  if (d) {
+    const [, mo, day] = d.split('-');
+    dStr = `${parseInt(day)}-${parseInt(mo)}`;
+  }
+  const eName = (eventInfo.eventName || 'Event')
+    .replace(/[^A-Za-z0-9 _-]/g, '')
+    .replace(/\s+/g, '_')
+    .slice(0, 40);
+  return `Attendance_${dStr}_Group${groupNum}_${eName}.xlsx`;
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+
+async function downloadGroup(groupNum) {
+  const btn = document.getElementById(`dl-g${groupNum}`);
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+
+  try {
+    const ei = getEventInfo();
+    if (!ei.date || !ei.eventName) {
+      alert('Please fill in the event name and date before downloading.'); return;
+    }
+    const blob = await buildWorkbook(groupNum, ei);
+    if (blob) triggerDownload(blob, buildFilename(groupNum, ei));
+  } catch(e) {
+    console.error(e);
+    alert('Error generating file: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
+async function downloadAll() {
+  const btn = document.getElementById('dl-all-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const ei = getEventInfo();
+    if (!ei.date || !ei.eventName) {
+      alert('Please fill in the event name and date before downloading.'); return;
+    }
+    for (const g of [1, 2, 3]) {
+      const hasStudents = APP_STUDENTS.some(s => s.group === g);
+      if (!hasStudents) continue;
+      const blob = await buildWorkbook(g, ei);
+      if (blob) {
+        triggerDownload(blob, buildFilename(g, ei));
+        await new Promise(r => setTimeout(r, 300)); // slight delay between downloads
+      }
+    }
+  } catch(e) {
+    console.error(e);
+    alert('Error generating files: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SESSION PRESETS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PRESETS = {
+  'full-830':  { session: 'Full Day', start: '08:30', end: '16:30' },
+  'full-1030': { session: 'Full Day', start: '10:30', end: '16:30' },
+  'psb':       { session: 'Post Short Break', start: '10:30', end: '12:30' },
+  'pl':        { session: 'Post Lunch',   start: '12:30', end: '16:30' },
+};
+
+function applyPreset(val) {
+  const sl  = document.getElementById('session-label');
+  const dt  = document.getElementById('duration-text');
+  const st  = document.getElementById('start-time');
+  const et  = document.getElementById('end-time');
+  const p   = PRESETS[val];
+
+  const isCustom = val === 'custom' || !p;
+  [sl, dt, st, et].forEach(el => el.readOnly = !isCustom);
+
+  if (p) {
+    st.value = p.start; et.value = p.end;
+    sl.value = p.session;
+    dt.value = `${formatTime12(p.start)} to ${formatTime12(p.end)}`;
+  }
+}
+
+function updateDuration() {
+  const preset = document.getElementById('session-preset').value;
+  if (preset && preset !== 'custom') return; // managed by preset
+  const st = document.getElementById('start-time').value;
+  const et = document.getElementById('end-time').value;
+  if (st && et) {
+    document.getElementById('duration-text').value = `${formatTime12(st)} to ${formatTime12(et)}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DARK MODE TOGGLE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function initTheme() {
+  const stored = localStorage.getItem('asm-theme');
+  if (stored) document.documentElement.setAttribute('data-theme', stored);
+  updateThemeBtn();
+}
+
+function updateThemeBtn() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark' ||
+    (html.getAttribute('data-theme') === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT WIRING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+
+  document.getElementById('theme-btn').addEventListener('click', () => {
+    const html = document.documentElement;
+    const cur = html.getAttribute('data-theme');
+    const next = (cur === 'dark') ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('asm-theme', next);
+    updateThemeBtn();
+  });
+
+  document.getElementById('session-preset').addEventListener('change', e => {
+    applyPreset(e.target.value);
+  });
+  document.getElementById('start-time').addEventListener('change', updateDuration);
+  document.getElementById('end-time').addEventListener('change', updateDuration);
+
+  document.getElementById('parse-btn').addEventListener('click', () => {
+    const text = document.getElementById('student-input').value;
+    const { students, errors } = parseAll(text);
+    // Tag each student with its index (for editing)
+    students.forEach((s, i) => { s._idx = i; });
+    APP_STUDENTS = students;
+    APP_PARSE_ERRORS = errors;
+    renderResults();
+  });
+
+  // Allow Ctrl+Enter to parse
+  document.getElementById('student-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      document.getElementById('parse-btn').click();
+    }
+  });
+
+  // Set today as default date
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('event-date').value = today;
+
+  // Default preset
+  applyPreset('pl');
+  document.getElementById('session-preset').value = 'pl';
+});
+{% endraw %}
+</script>
+</body>
+</html>
