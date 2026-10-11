@@ -21,6 +21,7 @@ from jinja2 import Environment, FileSystemLoader
 DATA_DIR = Path("data")
 TEMPLATE_FILE = "template.html"
 OUTPUT_FILE = Path("attendance_app.html")
+INDEX_FILE = Path("index.html")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -186,9 +187,10 @@ def main():
     )
 
     OUTPUT_FILE.write_text(html, encoding="utf-8")
+    INDEX_FILE.write_text(html, encoding="utf-8")
     size_kb = OUTPUT_FILE.stat().st_size // 1024
-    print(f"\nBuilt: {OUTPUT_FILE}  ({size_kb} KB)")
-    print("  Open attendance_app.html in any modern browser.")
+    print(f"\nBuilt: {OUTPUT_FILE} & {INDEX_FILE}  ({size_kb} KB)")
+    print("  Open attendance_app.html or index.html in any modern browser.")
 
 
 if __name__ == "__main__":
