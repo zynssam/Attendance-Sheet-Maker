@@ -64,7 +64,7 @@
 
     /* ── Reset & base ────────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.55; }
+    html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.55; -webkit-tap-highlight-color: transparent; }
 
     /* ── Layout ─────────────────────────────────────────────────────────────── */
     .app-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -72,11 +72,14 @@
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 1.25rem; height: 52px; border-bottom: 1px solid var(--border);
       background: var(--surface); flex-shrink: 0;
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--shadow-sm); z-index: 20;
     }
     .app-header h1 { font-size: 1rem; font-weight: 700; letter-spacing: -.3px; }
     .app-header .subtitle { font-size: .75rem; color: var(--muted); margin-left: .4rem; }
     .header-right { display: flex; align-items: center; gap: .5rem; }
+
+    /* Hamburger button — hidden on desktop */
+    .btn-menu { display: none; }
 
     .app-body {
       display: grid;
@@ -85,10 +88,6 @@
       gap: 0;
       flex: 1;
       overflow: hidden;
-    }
-    @media (max-width: 768px) {
-      .app-body { grid-template-columns: 1fr; overflow-y: auto; }
-      .app-shell { height: auto; overflow: visible; }
     }
 
     .form-panel {
@@ -99,6 +98,84 @@
       display: flex; flex-direction: column; gap: .75rem;
     }
     .results-panel { overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .875rem; }
+
+    /* ── Mobile overlay sidebar ─────────────────────────────────────────────── */
+    .sidebar-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      z-index: 90; opacity: 0; transition: opacity .25s;
+    }
+    .sidebar-backdrop.visible { display: block; opacity: 1; }
+
+    @media (max-width: 768px) {
+      .btn-menu {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px; font-size: 1.25rem;
+        background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+        cursor: pointer; margin-right: .35rem; flex-shrink: 0;
+      }
+
+      .app-body {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+      }
+      .app-shell { height: 100vh; overflow: hidden; }
+
+      .form-panel {
+        position: fixed; top: 0; left: 0; bottom: 0;
+        width: min(85vw, 360px);
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform .28s cubic-bezier(.4,0,.2,1);
+        border-right: 1px solid var(--border);
+        box-shadow: 4px 0 24px rgba(0,0,0,.15);
+        padding-bottom: 5rem; /* room for mobile parse bar */
+      }
+      .form-panel.open { transform: translateX(0); }
+
+      .results-panel {
+        padding: .75rem;
+        padding-bottom: 5rem; /* room for mobile bottom bar */
+      }
+
+      /* Mobile bottom parse bar */
+      .mobile-parse-bar {
+        display: flex !important;
+      }
+
+      /* Make tables horizontally scrollable */
+      .student-table-wrap { -webkit-overflow-scrolling: touch; }
+
+      /* Touch-friendly inputs */
+      input[type="text"], input[type="date"], input[type="time"],
+      select, textarea {
+        font-size: 16px; /* prevents iOS zoom */
+        padding: .55rem .75rem;
+      }
+      .edit-input { font-size: 14px !important; padding: .35rem .5rem; }
+      select.edit-input { min-width: 55px; }
+
+      /* Stack coordinator rows better */
+      .coord-row { flex-wrap: wrap; }
+
+      /* Shrink header text */
+      .app-header h1 { font-size: .9rem; }
+      .app-header .subtitle { display: none; }
+    }
+
+    /* Mobile bottom bar — sticky parse button */
+    .mobile-parse-bar {
+      display: none;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: .6rem 1rem; padding-bottom: max(.6rem, env(safe-area-inset-bottom));
+      background: var(--surface); border-top: 1px solid var(--border);
+      box-shadow: 0 -2px 12px rgba(0,0,0,.1);
+      z-index: 80; gap: .5rem;
+    }
+    .mobile-parse-bar button { flex: 1; }
+
+    @media (min-width: 769px) {
+      .mobile-parse-bar { display: none !important; }
+    }
 
     /* ── Card ────────────────────────────────────────────────────────────────── */
     .card {
@@ -146,6 +223,7 @@
     .field { display: flex; flex-direction: column; gap: .3rem; }
     .field label { font-size: .8rem; font-weight: 500; color: var(--muted); }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    @media (max-width: 400px) { .field-row { grid-template-columns: 1fr; } }
     .field-col { display: flex; flex-direction: column; gap: .5rem; }
 
     input[type="text"], input[type="date"], input[type="time"],
@@ -162,6 +240,7 @@
     }
     input[readonly] { opacity: .7; cursor: default; }
     textarea { resize: vertical; min-height: 160px; font-family: 'Inter', monospace; font-size: .8rem; line-height: 1.5; }
+    @media (max-width: 768px) { textarea { min-height: 120px; } }
 
     select option { background: var(--surface); color: var(--text); }
 
@@ -265,6 +344,25 @@
       border-radius: 7px; font-size: .85rem; font-weight: 700;
     }
     .btn-dl-all:hover { opacity: .88; }
+    @media (max-width: 768px) {
+      .download-all-row { justify-content: stretch; }
+      .btn-dl-all { width: 100%; text-align: center; }
+    }
+
+    /* ── Saved members badge ─────────────────────────────────────────────────── */
+    .saved-members-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .5rem .75rem; border-radius: 7px;
+      background: var(--g3l); border: 1px solid var(--g3);
+      font-size: .78rem; color: var(--g3d); gap: .5rem;
+    }
+    .saved-members-bar strong { font-weight: 700; }
+    .btn-clear-saved {
+      background: transparent; color: var(--g3d); border: 1px solid var(--g3);
+      padding: .2rem .5rem; font-size: .72rem; border-radius: 5px;
+      cursor: pointer; white-space: nowrap;
+    }
+    .btn-clear-saved:hover { background: var(--g3); color: #fff; }
 
     /* ── Empty state ─────────────────────────────────────────────────────────── */
     .empty-state {
@@ -307,6 +405,7 @@
   <!-- Header -->
   <header class="app-header">
     <div style="display:flex;align-items:center;gap:.5rem">
+      <button class="btn-menu" id="menu-btn" title="Open form" aria-label="Toggle sidebar">☰</button>
       <h1>Attendance Sheet Maker</h1>
       <span class="subtitle">REVA University · Extracurricular</span>
     </div>
@@ -314,6 +413,7 @@
       <button class="btn-icon" id="theme-btn" title="Toggle dark/light mode" aria-label="Toggle theme">🌙</button>
     </div>
   </header>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <div class="app-body">
 
@@ -387,11 +487,18 @@
       <div class="card" style="flex:1;display:flex;flex-direction:column;">
         <div class="card-title">Student list</div>
         <p class="hint">Paste one student per line — messy formats are fine.</p>
+        <div id="saved-members-info"></div>
         <textarea id="student-input" spellcheck="false" placeholder="Samra Syed - R24EH133 - 5th sem&#10;ARJUN R24EA016- 5 TH SEM AI ML A&#10;Gagan"></textarea>
         <button class="btn-primary" id="parse-btn" style="margin-top:.6rem">Parse students</button>
       </div>
 
     </aside>
+
+    <!-- Mobile bottom bar -->
+    <div class="mobile-parse-bar" id="mobile-parse-bar">
+      <button class="btn-primary" id="mobile-parse-btn">📋 Parse students</button>
+      <button class="btn-ghost" id="mobile-form-btn">✏️ Form</button>
+    </div>
 
     <!-- Right: results -->
     <main class="results-panel" id="results-panel">
@@ -1108,8 +1215,11 @@ async function buildWorkbook(groupNum, eventInfo) {
   zip.file('xl/_rels/workbook.xml.rels', ensureOneXmlDecl(relsXml));
   zip.file('[Content_Types].xml', ensureOneXmlDecl(ctXml));
 
-  return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: XLSX_MIME });
 }
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 function buildFilename(groupNum, eventInfo) {
   const d = eventInfo.date || '';
@@ -1125,13 +1235,37 @@ function buildFilename(groupNum, eventInfo) {
   return `Attendance_${dStr}_Group${groupNum}_${eName}.xlsx`;
 }
 
-function triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
+function isMobile() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
+}
+
+async function triggerDownload(blob, filename) {
+  // Ensure correct MIME type so mobile browsers don't rename to .zip
+  const xlsxBlob = new Blob([blob], { type: XLSX_MIME });
+
+  // Try Web Share API on mobile — gives a native share/save sheet
+  if (isMobile() && navigator.canShare) {
+    try {
+      const file = new File([xlsxBlob], filename, { type: XLSX_MIME });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+        return;
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') return; // user cancelled share
+      // Fall through to anchor download
+    }
+  }
+
+  // Fallback: anchor download
+  const url = URL.createObjectURL(xlsxBlob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename;
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 3000);
 }
 
 async function downloadGroup(groupNum) {
@@ -1145,7 +1279,7 @@ async function downloadGroup(groupNum) {
       alert('Please fill in the event name and date before downloading.'); return;
     }
     const blob = await buildWorkbook(groupNum, ei);
-    if (blob) triggerDownload(blob, buildFilename(groupNum, ei));
+    if (blob) await triggerDownload(blob, buildFilename(groupNum, ei));
   } catch(e) {
     console.error(e);
     alert('Error generating file: ' + e.message);
@@ -1154,28 +1288,52 @@ async function downloadGroup(groupNum) {
   }
 }
 
+// Queue for sequential mobile downloads (mobile browsers block rapid multi-downloads)
+let DL_QUEUE = [];
+let DL_RUNNING = false;
+
+async function processDlQueue() {
+  if (DL_RUNNING) return;
+  DL_RUNNING = true;
+  while (DL_QUEUE.length > 0) {
+    const { blob, filename } = DL_QUEUE.shift();
+    await triggerDownload(blob, filename);
+    // Wait longer on mobile to let each download register
+    await new Promise(r => setTimeout(r, isMobile() ? 1500 : 400));
+  }
+  DL_RUNNING = false;
+}
+
 async function downloadAll() {
   const btn = document.getElementById('dl-all-btn');
-  if (btn) btn.disabled = true;
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Building…'; }
   try {
     const ei = getEventInfo();
     if (!ei.date || !ei.eventName) {
       alert('Please fill in the event name and date before downloading.'); return;
     }
+
+    // Build all blobs first, then download sequentially
+    const files = [];
     for (const g of [1, 2, 3]) {
       const hasStudents = APP_STUDENTS.some(s => s.group === g);
       if (!hasStudents) continue;
       const blob = await buildWorkbook(g, ei);
-      if (blob) {
-        triggerDownload(blob, buildFilename(g, ei));
-        await new Promise(r => setTimeout(r, 300)); // slight delay between downloads
-      }
+      if (blob) files.push({ blob, filename: buildFilename(g, ei) });
     }
+
+    // On mobile, download one at a time through the queue
+    for (const f of files) {
+      DL_QUEUE.push(f);
+    }
+    await processDlQueue();
+
   } catch(e) {
     console.error(e);
     alert('Error generating files: ' + e.message);
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = orig || '⬇ Download all'; }
   }
 }
 
@@ -1235,11 +1393,156 @@ function updateThemeBtn() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SAVED MEMBERS — persist new students across sessions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SAVED_KEY = 'asm-saved-members';
+
+function loadSavedMembers() {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveMember(usn, data) {
+  const saved = loadSavedMembers();
+  saved[usn] = data;
+  localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
+}
+
+function clearSavedMembers() {
+  localStorage.removeItem(SAVED_KEY);
+  renderSavedMembersInfo();
+}
+
+function mergeSavedMembers() {
+  // Inject saved members into FACE_MEMBERS so they're available for lookup
+  const saved = loadSavedMembers();
+  for (const [usn, data] of Object.entries(saved)) {
+    if (!FACE_MEMBERS[usn]) {
+      FACE_MEMBERS[usn] = data;
+    }
+  }
+}
+
+function renderSavedMembersInfo() {
+  const container = document.getElementById('saved-members-info');
+  if (!container) return;
+  const saved = loadSavedMembers();
+  const count = Object.keys(saved).length;
+  if (count === 0) { container.innerHTML = ''; return; }
+
+  container.innerHTML = '';
+  const bar = el('div', { class: 'saved-members-bar', style: 'margin-bottom:.5rem' },
+    el('span', {}, `💾 `, el('strong', {}, String(count)), ` saved member${count > 1 ? 's' : ''} from previous sessions`),
+  );
+  const clearBtn = el('button', { class: 'btn-clear-saved', title: 'Remove all saved members' }, '✕ Clear');
+  clearBtn.addEventListener('click', () => {
+    if (confirm(`Clear all ${count} saved members?`)) {
+      clearSavedMembers();
+      // Remove saved-only entries from FACE_MEMBERS
+      const saved = loadSavedMembers(); // will be empty after clear
+      // Reload to reset — simplest approach
+      location.reload();
+    }
+  });
+  bar.appendChild(clearBtn);
+  container.appendChild(bar);
+}
+
+// After parsing, auto-save any new students that weren't originally in FACE_MEMBERS
+function autoSaveNewStudents(students) {
+  const saved = loadSavedMembers();
+  let newCount = 0;
+  for (const s of students) {
+    if (!s.usn) continue;
+    // If not in the original build data AND not already saved, save it
+    if (!saved[s.usn]) {
+      const data = {
+        name: s.name || '',
+        group: s.group || null,
+        semester: s.semester || null,
+        branch: '',
+        section: s.section || '',
+      };
+      saveMember(s.usn, data);
+      // Also inject into live FACE_MEMBERS
+      if (!FACE_MEMBERS[s.usn] || !FACE_MEMBERS[s.usn].group) {
+        FACE_MEMBERS[s.usn] = data;
+      }
+      newCount++;
+    }
+  }
+  if (newCount > 0) renderSavedMembersInfo();
+}
+
+// When a student's group/section/semester is edited, update saved members too
+const _origUpdateStudent = updateStudent;
+function updateStudentAndSave(idx, field, value) {
+  _origUpdateStudent(idx, field, value);
+  const s = APP_STUDENTS[idx];
+  if (s && s.usn) {
+    // Update in FACE_MEMBERS
+    if (FACE_MEMBERS[s.usn]) {
+      if (field === 'group') FACE_MEMBERS[s.usn].group = value;
+      if (field === 'section') FACE_MEMBERS[s.usn].section = value;
+      if (field === 'semester') FACE_MEMBERS[s.usn].semester = value;
+    }
+    // Persist to saved members
+    saveMember(s.usn, {
+      name: s.name || '',
+      group: s.group || null,
+      semester: s.semester || null,
+      branch: '',
+      section: s.section || '',
+    });
+    renderSavedMembersInfo();
+  }
+}
+// Override the global updateStudent
+updateStudent = updateStudentAndSave;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MOBILE SIDEBAR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function openSidebar() {
+  document.getElementById('form-panel').classList.add('open');
+  document.getElementById('sidebar-backdrop').classList.add('visible');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+  document.getElementById('form-panel').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EVENT WIRING
 // ═══════════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  mergeSavedMembers();
+  renderSavedMembersInfo();
+
+  // Mobile sidebar toggle
+  document.getElementById('menu-btn').addEventListener('click', openSidebar);
+  document.getElementById('sidebar-backdrop').addEventListener('click', closeSidebar);
+
+  // Mobile bottom bar buttons
+  const mobileParseBtn = document.getElementById('mobile-parse-btn');
+  if (mobileParseBtn) {
+    mobileParseBtn.addEventListener('click', () => {
+      document.getElementById('parse-btn').click();
+    });
+  }
+  const mobileFormBtn = document.getElementById('mobile-form-btn');
+  if (mobileFormBtn) {
+    mobileFormBtn.addEventListener('click', openSidebar);
+  }
 
   document.getElementById('theme-btn').addEventListener('click', () => {
     const html = document.documentElement;
@@ -1263,7 +1566,11 @@ document.addEventListener('DOMContentLoaded', () => {
     students.forEach((s, i) => { s._idx = i; });
     APP_STUDENTS = students;
     APP_PARSE_ERRORS = errors;
+    // Auto-save any new students for future sessions
+    autoSaveNewStudents(students);
     renderResults();
+    // Close sidebar on mobile after parsing
+    closeSidebar();
   });
 
   // Allow Ctrl+Enter to parse
