@@ -486,7 +486,7 @@
       <!-- Student paste area -->
       <div class="card" style="flex:1;display:flex;flex-direction:column;">
         <div class="card-title">Student list</div>
-        <p class="hint">Paste one student per line — messy formats are fine.</p>
+        <p class="hint">Paste one student per line — messy formats are fine. Type <strong>everyone</strong> to include all members (optionally <em>everyone 5th sem</em> or <em>everyone group 2</em>).</p>
         <div id="saved-members-info"></div>
         <textarea id="student-input" spellcheck="false" placeholder="Samra Syed - R24EH133 - 5th sem&#10;ARJUN R24EA016- 5 TH SEM AI ML A&#10;Gagan"></textarea>
         <button class="btn-primary" id="parse-btn" style="margin-top:.6rem">Parse students</button>
@@ -703,14 +703,60 @@ function parseLine(line) {
   };
 }
 
+// "everyone" keyword — expands to every member in the registry.
+// Accepted forms (case-insensitive), optionally narrowed by semester and/or group:
+//   everyone | all | all members | everybody
+//   everyone 5th sem | everyone group 2 | all members 3rd sem group 1
+// Returns null if the line is not an "everyone" line, else { sem, group }.
+function parseEveryoneLine(line) {
+  const m = line.trim().match(/^(?:everyone|everybody|all(?:\s+(?:members|students))?)\b(.*)$/i);
+  if (!m) return null;
+  let rest = m[1];
+  let sem = null, group = null;
+  rest = rest.replace(/\b(\d+)\s*(?:st|nd|rd|th)?\s*sem(?:ester)?\b/i, (_, n) => { sem = parseInt(n); return ' '; });
+  rest = rest.replace(/\bgroup\s*(\d+)\b/i, (_, n) => { group = parseInt(n); return ' '; });
+  // Anything left over (other than separators) means this is a name like "All Something", not the keyword.
+  if (rest.replace(/[\s,;:\-—|\/]+/g, '') !== '') return null;
+  return { sem, group };
+}
+
+function expandEveryone({ sem, group }) {
+  const out = [];
+  for (const [usn, fm] of Object.entries(FACE_MEMBERS)) {
+    if (sem !== null && fm.semester !== sem) continue;
+    if (group !== null && fm.group !== group) continue;
+    // Build straight from the registry (not via parseLine) so members with
+    // non-standard IDs, e.g. numeric SRNs, are still included.
+    const section = resolveSection(usn, null);
+    const warnings = [];
+    let status = 'ok';
+    if (!section) { status = 'nosect'; warnings.push('Section missing — row will be blank.'); }
+    out.push({ usn, name: fm.name, group: fm.group, semester: fm.semester, section, status, warnings });
+  }
+  return out;
+}
+
 function parseAll(text) {
   const lines = text.split(/\r?\n/);
   const students = [];
   const errors = [];
   const seenUSNs = new Set();
 
+  function add(result) {
+    if (result.usn && seenUSNs.has(result.usn)) return; // dedup
+    if (result.usn) seenUSNs.add(result.usn);
+    students.push(result);
+  }
+
   for (const line of lines) {
     if (!line.trim()) continue;
+
+    const every = parseEveryoneLine(line);
+    if (every) {
+      expandEveryone(every).forEach(add);
+      continue;
+    }
+
     const result = parseLine(line);
     if (!result) continue;
 
@@ -719,10 +765,7 @@ function parseAll(text) {
       continue;
     }
 
-    if (result.usn && seenUSNs.has(result.usn)) continue; // dedup
-    if (result.usn) seenUSNs.add(result.usn);
-
-    students.push(result);
+    add(result);
   }
 
   return { students, errors };
