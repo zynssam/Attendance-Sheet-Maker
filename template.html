@@ -486,7 +486,7 @@
       <!-- Student paste area -->
       <div class="card" style="flex:1;display:flex;flex-direction:column;">
         <div class="card-title">Student list</div>
-        <p class="hint">Paste one student per line — messy formats are fine. Type <strong>everyone</strong> to include all members (optionally <em>everyone 5th sem</em> or <em>everyone group 2</em>).</p>
+        <p class="hint">Paste one student per line — messy formats are fine. Type <strong>everyone</strong> to include all members (optionally <em>everyone 5th sem</em>, <em>everyone group 2</em>, or <em>everyone except group 1 5th sem and group 2 5th sem</em>).</p>
         <div id="saved-members-info"></div>
         <textarea id="student-input" spellcheck="false" placeholder="Samra Syed - R24EH133 - 5th sem&#10;ARJUN R24EA016- 5 TH SEM AI ML A&#10;Gagan"></textarea>
         <button class="btn-primary" id="parse-btn" style="margin-top:.6rem">Parse students</button>
@@ -704,27 +704,70 @@ function parseLine(line) {
 }
 
 // "everyone" keyword — expands to every member in the registry.
-// Accepted forms (case-insensitive), optionally narrowed by semester and/or group:
+// Accepted forms (case-insensitive), optionally narrowed by semester and/or group,
+// and optionally followed by exclusions:
 //   everyone | all | all members | everybody
 //   everyone 5th sem | everyone group 2 | all members 3rd sem group 1
-// Returns null if the line is not an "everyone" line, else { sem, group }.
+//   everyone except group 1 5th sem and group 2 5th sem
+//   everyone apart from group 3, R24EH133, Samra      (also: excluding, other than, but not, besides, minus, without)
+// Exclusion clauses are separated by "and", "or", commas, "&" or "+". Each clause can be
+// a semester and/or group, a USN/SRN, or a student name.
+// Returns null if the line is not an "everyone" line, else { sem, group, except: [clause...] }.
+const EXCEPT_RE = /\b(?:except(?:ing)?|apart\s+from|excluding|other\s+than|but\s+not|besides|minus|without)\b/i;
+
+function takeSemGroup(text) {
+  let sem = null, group = null;
+  text = text.replace(/\b(\d+)\s*(?:st|nd|rd|th)?\s*sem(?:ester)?\b/i, (_, n) => { sem = parseInt(n); return ' '; });
+  text = text.replace(/\bg(?:roup)?\s*(\d+)\b/i, (_, n) => { group = parseInt(n); return ' '; });
+  return { sem, group, rest: text };
+}
+
 function parseEveryoneLine(line) {
   const m = line.trim().match(/^(?:everyone|everybody|all(?:\s+(?:members|students))?)\b(.*)$/i);
   if (!m) return null;
-  let rest = m[1];
-  let sem = null, group = null;
-  rest = rest.replace(/\b(\d+)\s*(?:st|nd|rd|th)?\s*sem(?:ester)?\b/i, (_, n) => { sem = parseInt(n); return ' '; });
-  rest = rest.replace(/\bgroup\s*(\d+)\b/i, (_, n) => { group = parseInt(n); return ' '; });
+
+  const parts = m[1].split(EXCEPT_RE);
+  const inc = takeSemGroup(parts[0]);
   // Anything left over (other than separators) means this is a name like "All Something", not the keyword.
-  if (rest.replace(/[\s,;:\-—|\/]+/g, '') !== '') return null;
-  return { sem, group };
+  if (inc.rest.replace(/[\s,;:\-—|\/]+/g, '') !== '') return null;
+
+  const except = [];
+  if (parts.length > 1) {
+    const clauses = parts.slice(1).join(' ').split(/\s*(?:,|;|&|\+|\band\b|\bor\b)\s*/i);
+    for (const c of clauses) {
+      if (!c.trim()) continue;
+      const usn = extractUSN(c) || (c.match(/\b\d{11}\b/) || [null])[0];
+      if (usn) { except.push({ usn: usn.toUpperCase() }); continue; }
+      const t = takeSemGroup(c);
+      const name = t.rest.replace(/[\s,;:\-—|\/]+/g, ' ').trim();
+      if (t.sem !== null || t.group !== null) {
+        if (!name) { except.push({ sem: t.sem, group: t.group }); continue; }
+      }
+      if (name) except.push({ name });
+    }
+  }
+  return { sem: inc.sem, group: inc.group, except };
 }
 
-function expandEveryone({ sem, group }) {
+function expandEveryone({ sem, group, except }) {
   const out = [];
+  const errors = [];
+  const unmatched = new Set(except.filter(x => x.name || x.usn).map(x => x.name || x.usn));
+
   for (const [usn, fm] of Object.entries(FACE_MEMBERS)) {
     if (sem !== null && fm.semester !== sem) continue;
     if (group !== null && fm.group !== group) continue;
+
+    let excluded = false;
+    for (const x of except) {
+      let hit = false;
+      if (x.usn) hit = x.usn === usn.toUpperCase();
+      else if (x.name) hit = nameMatches(x.name, fm.name);
+      else hit = (x.sem == null || x.sem === fm.semester) && (x.group == null || x.group === fm.group);
+      if (hit) { excluded = true; unmatched.delete(x.name || x.usn); }
+    }
+    if (excluded) continue;
+
     // Build straight from the registry (not via parseLine) so members with
     // non-standard IDs, e.g. numeric SRNs, are still included.
     const section = resolveSection(usn, null);
@@ -733,7 +776,11 @@ function expandEveryone({ sem, group }) {
     if (!section) { status = 'nosect'; warnings.push('Section missing — row will be blank.'); }
     out.push({ usn, name: fm.name, group: fm.group, semester: fm.semester, section, status, warnings });
   }
-  return out;
+
+  for (const u of unmatched) {
+    errors.push({ error: true, line: `everyone except ${u}`, reason: `Exclusion "${u}" did not match anyone in the list.` });
+  }
+  return { students: out, errors };
 }
 
 function parseAll(text) {
@@ -753,7 +800,9 @@ function parseAll(text) {
 
     const every = parseEveryoneLine(line);
     if (every) {
-      expandEveryone(every).forEach(add);
+      const ex = expandEveryone(every);
+      ex.students.forEach(add);
+      errors.push(...ex.errors);
       continue;
     }
 
